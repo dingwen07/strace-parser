@@ -1,21 +1,29 @@
 start : line+
 
-line : timestamp _SP body _LF
+line : pid? timestamp _SP body _LF
 
+pid : DIGIT+ _SP
 timestamp : TIMESTAMP
-body : syscall | signal_line | resumed_line | alert_body
+body : syscall
+     | signal_line
+     | resumed_line
+     | unfinished_line
+     | alert_body
 
 // === Existing syscall rule (unchanged) ===
-syscall : syscall_name "(" syscall_args ")" _SP+ "=" _SP+ syscall_result (_SP syscall_duration)?
+syscall : syscall_name "(" syscall_args? ")" _SP+ "=" _SP+ syscall_result (_SP syscall_duration)?
 
 syscall_name : NAME
-syscall_args : syscall_arg? ("," _SP? syscall_arg)*
+syscall_args : (UNFINISHED | syscall_arg) ("," _SP? (UNFINISHED | syscall_arg))*
 
-?syscall_arg : braced
+?syscall_arg : len_arrow
+             | braced
              | bracketed
              | key_value
              | function_like
              | sigset
+             | UNFINISHED
+             | fd_with_path
              | c_expr
              | plain_arg
 
@@ -23,20 +31,27 @@ braced : "{" struct_fields "}"
 bracketed : "[" syscall_args "]"
 
 struct_fields : struct_field? ("," _SP? struct_field)*
-?struct_field : key_value
+?struct_field : len_arrow
+              | key_value
               | function_like
+              | sigset
+              | fd_with_path
               | c_expr
               | plain_arg
 
 key_value : NAME _SP? "=" _SP? syscall_arg -> kv
 function_like : NAME "(" syscall_args ")"
 sigset : NEGATED? "[" SIGNAL? (_SP SIGNAL)* "]"
+fd_with_path : (DIGIT+ | NAME) "<" /([^<>\\]|\\.)+/ ">"
+len_arrow : "[" DIGIT+ _SP? "=>" _SP? DIGIT+ "]"
+
 
 // Allow almost anything except structural tokens inside expressions
-c_expr : /[^,}\]\[\{}]+/
-plain_arg : /[^,)}\]\[{}]+/
+c_expr : /[^,}\]\[\{}<>]+/
+plain_arg : /[^,)}\]\[{}<>]+/
 
 syscall_result : /.+?(?=\s*<|$)/s
+               | fd_with_path
 syscall_duration : "<" DURATION ">"
 
 // === NEW: Signal delivery lines ===
@@ -45,7 +60,11 @@ signal_line : "---" _SP SIG_NAME _SP braced _SP "---"
 SIG_NAME : /SIG[A-Z0-9]+/   // SIGCHLD, SIGTERM, etc.
 
 // === NEW: Resumed/unfinished lines (very common with -f) ===
-resumed_line : "<... resumed>" _SP syscall _SP*   // e.g. <... read resumed> ...
+resumed_line : RESUMED_TAG _SP? resumed_tail
+resumed_tail : ")" _SP* "=" _SP* syscall_result (_SP syscall_duration)?
+             | syscall_args ")" _SP* "=" _SP* syscall_result (_SP syscall_duration)?
+unfinished_syscall : syscall_name "(" syscall_args?
+unfinished_line : unfinished_syscall _SP? UNFINISHED
 
 // === Existing alert line ===
 alert_body : "+++" _SP "exited with" _SP DIGIT+ _SP "+++"
@@ -57,6 +76,8 @@ NEGATED : "~"
 TIMESTAMP : DIGIT+ "." DIGIT+
 DURATION : DIGIT+ "." DIGIT+
 DIGIT : /[0-9]+/
+UNFINISHED : "<unfinished ...>"
+RESUMED_TAG : "<..." _SP NAME _SP "resumed>"
 
 _SP : " "+
 _LF : "\n"
