@@ -10,11 +10,11 @@ body : syscall
      | unfinished_line
      | alert_body
 
-// === Existing syscall rule (unchanged) ===
+// syscall rule
 syscall : syscall_name "(" syscall_args? ")" _SP+ "=" _SP+ syscall_result (_SP syscall_duration)?
 
 syscall_name : NAME
-syscall_args : (UNFINISHED | syscall_arg) ("," _SP? (UNFINISHED | syscall_arg))*
+syscall_args : (_SP? UNFINISHED | syscall_arg) ("," _SP? (UNFINISHED | syscall_arg))*
 
 ?syscall_arg : len_arrow
              | braced
@@ -30,7 +30,8 @@ syscall_args : (UNFINISHED | syscall_arg) ("," _SP? (UNFINISHED | syscall_arg))*
 braced : "{" struct_fields "}"
 bracketed : "[" syscall_args "]"
 
-struct_fields : struct_field? ("," _SP? struct_field)*
+struct_fields : field_expr? ("," _SP? field_expr)*
+field_expr : struct_field (_SP? OPERATOR _SP? struct_field)*
 ?struct_field : len_arrow
               | key_value
               | function_like
@@ -45,33 +46,31 @@ sigset : NEGATED? "[" SIGNAL? (_SP SIGNAL)* "]"
 fd_with_path : (DIGIT+ | NAME) "<" /([^<>\\]|\\.)+/ ">"
 len_arrow : "[" DIGIT+ _SP? "=>" _SP? DIGIT+ "]"
 
-
-// Allow almost anything except structural tokens inside expressions
-c_expr : /[^,}\]\[\{}<>]+/
+c_expr : /[^,)}\]\[\{}<>]+/
 plain_arg : /[^,)}\]\[{}<>]+/
 
 syscall_result : /.+?(?=\s*<|$)/s
                | fd_with_path
 syscall_duration : "<" DURATION ">"
 
-// === NEW: Signal delivery lines ===
+// Signal delivery lines
 signal_line : "---" _SP SIG_NAME _SP braced _SP "---"
 
 SIG_NAME : /SIG[A-Z0-9]+/   // SIGCHLD, SIGTERM, etc.
 
-// === NEW: Resumed/unfinished lines (very common with -f) ===
+// Resumed/unfinished lines (very common with -f)
 resumed_line : RESUMED_TAG _SP? resumed_tail
 resumed_tail : ")" _SP* "=" _SP* syscall_result (_SP syscall_duration)?
-             | syscall_args ")" _SP* "=" _SP* syscall_result (_SP syscall_duration)?
+             | ","? _SP? syscall_args ")" _SP* "=" _SP* syscall_result (_SP syscall_duration)?
 unfinished_syscall : syscall_name "(" syscall_args?
 unfinished_line : unfinished_syscall _SP? UNFINISHED
 
-// === Existing alert line ===
 alert_body : "+++" _SP "exited with" _SP DIGIT+ _SP "+++"
 
 NAME : /[a-zA-Z_][a-zA-Z0-9_]*/
 SIGNAL : /[A-Z0-9_]+/
 NEGATED : "~"
+OPERATOR : "&&" | "||" | "==" | "!=" | "<=" | ">=" | "&" | "|" | "^" | "+" | "-" | "*" | "/" | "%"
 
 TIMESTAMP : DIGIT+ "." DIGIT+
 DURATION : DIGIT+ "." DIGIT+

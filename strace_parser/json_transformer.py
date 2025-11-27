@@ -238,6 +238,39 @@ class JsonTransformer(Transformer):
             "items": items
         }
 
+    # -------------------------------------
+    # Expression Chaining
+    # -------------------------------------
+    def field_expr(self, children):
+        """
+        Handles chains like: WIFEXITED(s) && WEXITSTATUS(s) == 1
+        If it's a single item, return it as-is.
+        If it's a chain, reconstruct it into a single string for readability.
+        """
+        if len(children) == 1:
+            return children[0]
+
+        # Helper to convert parsed objects back to string representation
+        parts = []
+        for child in children:
+            if isinstance(child, dict) and child.get("type") == "function":
+                # Reconstruct function call: name(args)
+                # args might be a list or a single string depending on your other rules
+                args = child.get("args", [])
+                if isinstance(args, list):
+                    # args is a list of parsed objects, simpler to just say "args"
+                    # or try to flatten them. For strace flags, this is usually sufficient:
+                    arg_str = ", ".join(str(a) for a in args) 
+                else:
+                    arg_str = str(args)
+                parts.append(f"{child['name']}({arg_str})")
+            elif isinstance(child, Token):
+                parts.append(str(child))
+            else:
+                parts.append(str(child))
+        
+        # Return the reconstructed expression string
+        return " ".join(parts)
 
     def struct_fields(self, children):
         return children
@@ -284,6 +317,17 @@ class JsonTransformer(Transformer):
             "type": "sigset",
             "negated": neg,
             "args": args,
+        }
+    
+    def len_arrow(self, children):
+        """
+        [LEN => LEN]  (e.g. [28 => 16])
+        """
+        # children = [Token('DIGIT', '28'), Token('DIGIT', '16')]
+        return {
+            "type": "len",
+            "from": int(str(children[0])),
+            "to": int(str(children[1])),
         }
 
     def c_expr(self, children):
