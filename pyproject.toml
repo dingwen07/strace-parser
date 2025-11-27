@@ -1,36 +1,20 @@
 [build-system]
-requires = ["flit_core >=2,<3"]
-build-backend = "flit_core.buildapi"
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.flit.metadata]
-author = "Chris Hunt"
-author-email = "chrahunt@gmail.com"
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Topic :: Text Processing",
+[project]
+name = "strace-parser"
+version = "0.1.0"
+description = "Parser for strace output"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  { name = "Chris Hunt", email = "chrahunt@gmail.com" }
 ]
-dist-name = "strace-parser"
-description-file = "README.md"
-home-page = "https://github.com/chrahunt/strace-parser"
-license = "MIT"
-module = "strace_parser"
-requires = [
-    "lark-parser>=0.7.8",
+license = { text = "MIT" }
+dependencies = [
+  "lark-parser>=0.7.8",
 ]
-requires-python = ">=3.8.0"
 
-[tool.flit.scripts]
+[project.scripts]
 strace-parser = "strace_parser.cli:main"
-
-[tool.isort]
-force_grid_wrap = 0
-include_trailing_comma = true
-line_length = 88
-multi_line_output = 3
-use_parentheses = true
